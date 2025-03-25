@@ -39,10 +39,12 @@ with col1:
     if st.button("🔍 Consultar", use_container_width=True):  
         if comando:  
             # Simula uma resposta (substitua pelo seu webhook)  
-            resposta_exemplo = {  
-"texto": f"Resposta para '{comando}': Dados carregados com sucesso.",  
-                "grafico": "https://via.placeholder.com/600x400?text=Gráfico+Exemplo"  
-            }  
+            resposta = requests.post(
+    "https://hook.us2.make.com/ud0m37h2c2dhabktb5hrbc8171thanj9", 
+    json={"comando": comando},
+    headers={"Content-Type": "application/json"}
+)
+dados = resposta.json()
             st.success(resposta_exemplo["texto"])  
             st.image(resposta_exemplo["grafico"], caption="Gráfico atualizado")  
         else:  
