@@ -45,10 +45,10 @@ with col1:
     headers={"Content-Type": "application/json"}
 )
 dados = resposta.json()
-            st.success(resposta_exemplo["texto"])  
-            st.image(resposta_exemplo["grafico"], caption="Gráfico atualizado")  
+           st.success(resposta_exemplo["texto"])  
+           st.image(resposta_exemplo["grafico"], caption="Gráfico atualizado")  
         else:  
-            st.warning("Digite um comando!")  
+           st.warning("Digite um comando!")  
 
 with col2:  
     if st.button("🎤 Falar", use_container_width=True):  
