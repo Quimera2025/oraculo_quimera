@@ -38,17 +38,21 @@ col1, col2 = st.columns(2)
 with col1:  
     if st.button("🔍 Consultar", use_container_width=True):  
         if comando:  
-            # Simula uma resposta (substitua pelo seu webhook)  
-            resposta = requests.post(
-    "https://hook.us2.make.com/ud0m37h2c2dhabktb5hrbc8171thanj9", 
-    json={"comando": comando},
-    headers={"Content-Type": "application/json"}
-)
-dados = resposta.json()
-           st.success(resposta_exemplo["texto"])  
-           st.image(resposta_exemplo["grafico"], caption="Gráfico atualizado")  
+            try:
+                # Envia para o webhook do Make
+                resposta = requests.post(
+                    "https://hook.us2.make.com/ud0m37h2c2dhabktb5hrbc8171thanj9", 
+                    json={"comando": comando},
+                    headers={"Content-Type": "application/json"}
+                )
+                dados = resposta.json()
+                st.success(dados["texto"])  
+                if "grafico" in dados:
+                    st.image(dados["grafico"], caption="Gráfico atualizado")  
+            except Exception as e:
+                st.error(f"Erro ao consultar: {str(e)}")
         else:  
-           st.warning("Digite um comando!")  
+            st.warning("Digite um comando!")  
 
 with col2:  
     if st.button("🎤 Falar", use_container_width=True):  
@@ -56,4 +60,6 @@ with col2:
 
 # Seção de resultados (expandível)  
 with st.expander("📊 Histórico de Consultas"):  
-    st.write("Últimas respostas aparecerão aqui.")
+    st.write("Últimas respostas aparecerão aqui.")  
+    
+
