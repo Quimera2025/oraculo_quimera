@@ -42,17 +42,22 @@ with col1:
                 # Envia para o webhook do Make
                 resposta = requests.post(
                     "https://hook.us2.make.com/ud0m37h2c2dhabktb5hrbc8171thanj9", 
-                    json={"comando": comando},
-                    headers={"Content-Type": "application/json"}
-                )
-                dados = resposta.json()
-                st.success(dados["texto"])  
-                if "grafico" in dados:
-                    st.image(dados["grafico"], caption="Gráfico atualizado")  
-            except Exception as e:
-                st.error(f"Erro ao consultar: {str(e)}")
-        else:  
-            st.warning("Digite um comando!")  
+                    json={
+            "comando": comando,
+            "tipo_consulta": "documento"  # Novo parâmetro
+        }
+    )
+    dados = resposta.json()
+    
+    if "erro" in dados:
+        st.error(dados["erro"])
+    else:
+        st.success(dados["texto"])
+        if "arquivo" in dados:
+            st.download_button("Baixar Documento", dados["arquivo"])
+            
+except Exception as e:
+    st.error(f"Erro na consulta: {str(e)}"  
 
 with col2:  
     if st.button("🎤 Falar", use_container_width=True):  
