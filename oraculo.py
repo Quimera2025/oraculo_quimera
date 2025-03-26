@@ -21,7 +21,7 @@ st.markdown("""
 st.markdown('<h1 class="title">Oráculo Quimera</h1>', unsafe_allow_html=True)  
 st.write("Consulte dados da empresa em tempo real usando comandos simples.")  
 
-# Sidebar com exemplos  
+# Sidebar com exemplos
 with st.sidebar:  
     st.header("📋 Comandos Válidos")  
     st.markdown("""  
@@ -43,26 +43,26 @@ with col1:
                 resposta = requests.post(
                     "https://hook.us2.make.com/ud0m37h2c2dhabktb5hrbc8171thanj9", 
                     json={
-            "comando": comando,
-            "tipo_consulta": "documento"
-        }
-    )
-    resposta.raise_for_status()  # Verifica erros HTTP
-    dados = resposta.json()
-    
-    if "erro" in dados:
-        st.error(dados["erro"])
-    else:
-        st.success(dados["texto"])
-        if "arquivo" in dados:
-            st.download_button("Baixar Documento", dados["arquivo"])
+                        "comando": comando,
+                        "tipo_consulta": "documento"
+                    }
+                )
+                resposta.raise_for_status()  # Verifica erros HTTP
+                dados = resposta.json()
+                
+                if "erro" in dados:
+                    st.error(dados["erro"])
+                else:
+                    st.success(dados["texto"])
+                    if "arquivo" in dados:
+                        st.download_button("Baixar Documento", dados["arquivo"])
             
-except requests.exceptions.RequestException as e:
-    st.error(f"Falha na comunicação com a API: {str(e)}")
-except ValueError as e:
-    st.error(f"Resposta inválida da API: {str(e)}")
-except Exception as e:
-    st.error(f"Erro inesperado: {str(e)}")  
+            except requests.exceptions.RequestException as e:
+                st.error(f"Falha na comunicação com a API: {str(e)}")
+            except ValueError as e:
+                st.error(f"Resposta inválida da API: {str(e)}")
+            except Exception as e:
+                st.error(f"Erro inesperado: {str(e)}")
 
 with col2:  
     if st.button("🎤 Falar", use_container_width=True):  
@@ -70,6 +70,4 @@ with col2:
 
 # Seção de resultados (expandível)  
 with st.expander("📊 Histórico de Consultas"):  
-    st.write("Últimas respostas aparecerão aqui.")  
-    
-
+    st.write("Últimas respostas aparecerão aqui.")
