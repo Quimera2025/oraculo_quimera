@@ -44,9 +44,10 @@ with col1:
                     "https://hook.us2.make.com/ud0m37h2c2dhabktb5hrbc8171thanj9", 
                     json={
             "comando": comando,
-            "tipo_consulta": "documento"  # Novo parâmetro
+            "tipo_consulta": "documento"
         }
     )
+    resposta.raise_for_status()  # Verifica erros HTTP
     dados = resposta.json()
     
     if "erro" in dados:
@@ -56,8 +57,12 @@ with col1:
         if "arquivo" in dados:
             st.download_button("Baixar Documento", dados["arquivo"])
             
+except requests.exceptions.RequestException as e:
+    st.error(f"Falha na comunicação com a API: {str(e)}")
+except ValueError as e:
+    st.error(f"Resposta inválida da API: {str(e)}")
 except Exception as e:
-    st.error(f"Erro na consulta: {str(e)}"  
+    st.error(f"Erro inesperado: {str(e)}")  
 
 with col2:  
     if st.button("🎤 Falar", use_container_width=True):  
