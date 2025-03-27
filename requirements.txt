@@ -1,8 +1,8 @@
-notion-client>=2.0.0
-openai>=1.0.0
-python-dotenv>=1.0.0
-PyPDF2>=3.0.0
-python-docx>=0.8.11
-streamlit>=1.28.0
-pytest>=7.0.0  # Opcional para testes
+notion-client==2.4.0  # Versão estável recente
+openai==1.12.0        # Evita conflitos com mudanças recentes
+python-dotenv==1.0.0
+PyPDF2==3.0.1         # Versão específica para PDF
+python-docx==0.8.11
+streamlit==1.29.0     # Versão testada com seu código
+
 
