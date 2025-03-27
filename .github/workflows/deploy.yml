@@ -1,4 +1,4 @@
-name: Deploy Streamlit App
+name: Deploy to Streamlit Cloud
 on:
   push:
     branches: [main]
@@ -7,8 +7,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: pip install -r requirements.txt
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
       - uses: streamlit/streamlit-action@main
         with:
-          app: app.py  # Confira se este é o nome do seu arquivo principal
+          app: app.py
           cloud: true
+          secrets: |
+            OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
