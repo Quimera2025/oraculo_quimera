@@ -1,73 +1,124 @@
-import streamlit as st  
-import requests  
-from PIL import Image  
+import os
+from notion_client import Client
+from openai import OpenAI
+from datetime import datetime, timedelta
 
-# Configurações da página  
-st.set_page_config(  
-    page_title="Oráculo Quimera",  
-    page_icon="🔮",  
-    layout="centered"  
-)  
+# Configurações iniciais
+NOTION_TOKEN = "seu_token_integracao_notion"
+NOTION_DATABASE_ID = "id_do_seu_banco_de_dados"
+OPENAI_API_KEY = "sua_chave_openai"
 
-# CSS para estilo (opcional)  
-st.markdown("""  
-    <style>  
-    .title { font-size: 2.5rem !important; color: #6a0dad !important; }  
-    .stButton button { background-color: #6a0dad !important; color: white !important; }  
-    </style>  
-""", unsafe_allow_html=True)  
+# Inicializa clients
+notion = Client(auth=NOTION_TOKEN)
+openai = OpenAI(api_key=OPENAI_API_KEY)
 
-# Título e descrição  
-st.markdown('<h1 class="title">Oráculo Quimera</h1>', unsafe_allow_html=True)  
-st.write("Consulte dados da empresa em tempo real usando comandos simples.")  
-
-# Sidebar com exemplos
-with st.sidebar:  
-    st.header("📋 Comandos Válidos")  
-    st.markdown("""  
-    - `faturamento`: Dados financeiros.  
-    - `clientes`: Lista de clientes ativos.  
-    - `projetos`: Status dos projetos.  
-    """)  
-
-# Campo de comando  
-comando = st.text_input("Digite seu comando:")  
-
-# Botões de ação  
-col1, col2 = st.columns(2)  
-with col1:  
-    if st.button("🔍 Consultar", use_container_width=True):  
-        if comando:  
-            try:
-                # Envia para o webhook do Make
-                resposta = requests.post(
-                    "https://hook.us2.make.com/ud0m37h2c2dhabktb5hrbc8171thanj9", 
-                    json={
-                        "comando": comando,
-                        "tipo_consulta": "documento"
+class OraculoNotion:
+    def __init__(self):
+        self.historico = []
+        
+    def buscar_perguntas_recentes(self, horas=24):
+        """Busca perguntas no Notion das últimas X horas"""
+        cutoff_time = datetime.now() - timedelta(hours=horas)
+        
+        resultados = notion.databases.query(
+            database_id=NOTION_DATABASE_ID,
+            filter={
+                "property": "Criado",
+                "date": {
+                    "after": cutoff_time.isoformat()
+                }
+            },
+            sorts=[{
+                "property": "Criado",
+                "direction": "descending"
+            }]
+        )
+        
+        return resultados.get("results", [])
+    
+    def gerar_resposta_ia(self, pergunta, contexto=None):
+        """Usa OpenAI para gerar uma resposta inteligente"""
+        prompt = f"""
+        Você é um oráculo sábio que responde perguntas com sabedoria e insights profundos.
+        Pergunta: {pergunta}
+        {f'Contexto adicional: {contexto}' if contexto else ''}
+        
+        Sua resposta deve:
+        - Ser clara e concisa
+        - Incluir um insight único
+        - Oferecer perspectiva prática
+        - Ter no máximo 3 parágrafos
+        """
+        
+        response = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Você é um oráculo sábio e respeitado."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=256
+        )
+        
+        return response.choices[0].message.content
+    
+    def adicionar_resposta_notion(self, pagina_id, resposta):
+        """Adiciona a resposta ao banco de dados do Notion"""
+        notion.pages.update(
+            page_id=pagina_id,
+            properties={
+                "Resposta": {
+                    "rich_text": [{
+                        "text": {
+                            "content": resposta
+                        }
+                    }]
+                },
+                "Status": {
+                    "select": {
+                        "name": "Respondido"
                     }
-                )
-                resposta.raise_for_status()  # Verifica erros HTTP
-                dados = resposta.json()
-                
-                if "erro" in dados:
-                    st.error(dados["erro"])
-                else:
-                    st.success(dados["texto"])
-                    if "arquivo" in dados:
-                        st.download_button("Baixar Documento", dados["arquivo"])
+                },
+                "Respondido em": {
+                    "date": {
+                        "start": datetime.now().isoformat()
+                    }
+                }
+            }
+        )
+    
+    def processar_novas_perguntas(self):
+        """Processa perguntas não respondidas e gera respostas"""
+        perguntas = self.buscar_perguntas_recentes()
+        
+        for item in perguntas:
+            propriedades = item.get("properties", {})
+            status = propriedades.get("Status", {}).get("select", {}).get("name")
             
-            except requests.exceptions.RequestException as e:
-                st.error(f"Falha na comunicação com a API: {str(e)}")
-            except ValueError as e:
-                st.error(f"Resposta inválida da API: {str(e)}")
-            except Exception as e:
-                st.error(f"Erro inesperado: {str(e)}")
+            if status != "Respondido":
+                pergunta = propriedades.get("Pergunta", {}).get("title", [{}])[0].get("text", {}).get("content", "")
+                
+                if pergunta:
+                    print(f"Processando pergunta: {pergunta}")
+                    resposta = self.gerar_resposta_ia(pergunta)
+                    self.adicionar_resposta_notion(item["id"], resposta)
+                    print(f"Resposta adicionada ao Notion!")
+                    
+    def executar_loop_continuo(self, intervalo_minutos=30):
+        """Executa em loop verificando novas perguntas"""
+        import time
+        while True:
+            print(f"\n{datetime.now()}: Verificando novas perguntas...")
+            self.processar_novas_perguntas()
+            time.sleep(intervalo_minutos * 60)
 
-with col2:  
-    if st.button("🎤 Falar", use_container_width=True):  
-        st.info("Gravação de voz requer configuração adicional (veja o código).")  
-
-# Seção de resultados (expandível)  
-with st.expander("📊 Histórico de Consultas"):  
-    st.write("Últimas respostas aparecerão aqui.")
+if __name__ == "__main__":
+    oraculo = OraculoNotion()
+    
+    # Modo de operação (escolha um):
+    
+    # 1. Executar uma vez
+    oraculo.processar_novas_perguntas()
+    
+    # 2. Executar em loop contínuo (para servidor)
+    # oraculo.executar_loop_continuo(intervalo_minutos=30)
