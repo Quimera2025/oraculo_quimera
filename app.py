@@ -2,6 +2,10 @@
 """
 Streamlit App para o Oráculo Sábio
 """
+import os
+if os.getenv("IS_STREAMLIT_CLOUD"):
+    # Configurações específicas para a nuvem
+    os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 import streamlit as st
 from oraculo import Oraculo, __version__  # Importação correta da versão
 import traceback
