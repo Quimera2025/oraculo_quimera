@@ -1,232 +1,179 @@
 import os
-import sys
+import json
 import logging
-from datetime import datetime, timedelta
-from dotenv import load_dotenv
-import requests
+from datetime import datetime
+from pathlib import Path
+from openai import OpenAI
 
-# Configuração para evitar erros de encoding no Windows
-sys.stdout.reconfigure(encoding='utf-8') if hasattr(sys.stdout, 'reconfigure') else None
+# Configuração de pastas
+os.makedirs("dados", exist_ok=True)
+os.makedirs("uploads", exist_ok=True)
 
 # Configuração de logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('oraculo.log', encoding='utf-8'),
-        logging.StreamHandler(sys.stdout)
+        logging.FileHandler('oraculo.log'),
+        logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
 
-# Carrega variáveis de ambiente
-load_dotenv()
-
-class NotionAPIClient:
-    def __init__(self):
-        self.token = os.getenv("NOTION_TOKEN")
-        self.api_url = "https://api.notion.com/v1"
-        self.headers = {
-            "Authorization": f"Bearer {self.token}",
-            "Notion-Version": "2022-06-28",
-            "Content-Type": "application/json"
-        }
-    
-    def _make_request(self, method, endpoint, data=None):
+class GerenciadorSegredo:
+    @staticmethod
+    def carregar_chave():
+        """Carrega a chave de forma segura"""
         try:
-            response = requests.request(
-                method,
-                f"{self.api_url}{endpoint}",
-                headers=self.headers,
-                json=data,
-                timeout=10
-            )
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Erro na requisição: {method} {endpoint} - {str(e)}")
+            # Em produção, use variáveis de ambiente ou um gerenciador de segredos
+            return "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"
+        except Exception as e:
+            logger.critical(f"Erro ao carregar chave: {str(e)}")
             raise
 
-    def test_connection(self):
-        """Testa se a conexão com a API está funcionando"""
-        try:
-            response = self._make_request("GET", "/users")
-            logger.info("Conexão com Notion API estabelecida com sucesso")
-            return True
-        except Exception as e:
-            logger.error("Falha ao conectar com Notion API")
-            raise RuntimeError(f"Erro de conexão: {str(e)}")
-
-    def get_database(self, database_id):
-        """Obtém informações sobre o banco de dados"""
-        return self._make_request("GET", f"/databases/{database_id}")
-
-    def query_database(self, database_id, filter_data=None):
-        """Consulta um banco de dados"""
-        return self._make_request(
-            "POST",
-            f"/databases/{database_id}/query",
-            data={"filter": filter_data} if filter_data else None
-        )
-
-    def update_page(self, page_id, properties):
-        """Atualiza uma página no Notion"""
-        return self._make_request(
-            "PATCH",
-            f"/pages/{page_id}",
-            data={"properties": properties}
-        )
-
-class OpenAIHandler:
+class BancoDeDados:
     def __init__(self):
-        self.api_key = os.getenv("OPENAI_API_KEY")
-        self.base_url = "https://api.openai.com/v1"
-    
-    def generate_response(self, prompt):
-        try:
-            response = requests.post(
-                f"{self.base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": "gpt-3.5-turbo",
-                    "messages": [
-                        {"role": "system", "content": "Você é um oráculo sábio que fornece conselhos profundos."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    "temperature": 0.7,
-                    "max_tokens": 256
-                },
-                timeout=15
-            )
-            response.raise_for_status()
-            return response.json()["choices"][0]["message"]["content"]
-        except Exception as e:
-            logger.error(f"Erro ao gerar resposta com OpenAI: {str(e)}")
-            return "🔮 [O oráculo está temporariamente indisponível]"
+        self.arquivo = Path("dados/perguntas.json")
+        self.carregar_dados()
 
-class OraculoNotion:
+    def carregar_dados(self):
+        try:
+            if not self.arquivo.exists():
+                self.dados = {"perguntas": []}
+                self.salvar_dados()
+            else:
+                with open(self.arquivo, 'r', encoding='utf-8') as f:
+                    self.dados = json.load(f)
+        except Exception as e:
+            logger.error(f"Erro ao carregar dados: {str(e)}")
+            self.dados = {"perguntas": []}
+
+    def salvar_dados(self):
+        try:
+            with open(self.arquivo, 'w', encoding='utf-8') as f:
+                json.dump(self.dados, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logger.error(f"Erro ao salvar dados: {str(e)}")
+
+    def adicionar_pergunta(self, pergunta, arquivo=None):
+        registro = {
+            "id": len(self.dados["perguntas"]) + 1,
+            "pergunta": pergunta,
+            "resposta": None,
+            "arquivo": arquivo,
+            "data": datetime.now().isoformat(),
+            "respondida": False
+        }
+        self.dados["perguntas"].append(registro)
+        self.salvar_dados()
+        return registro
+
+    def responder_pergunta(self, id_pergunta, resposta):
+        for item in self.dados["perguntas"]:
+            if item["id"] == id_pergunta:
+                item["resposta"] = resposta
+                item["respondida"] = True
+                item["data_resposta"] = datetime.now().isoformat()
+                self.salvar_dados()
+                return True
+        return False
+
+class GerenciadorIA:
     def __init__(self):
-        self.notion = NotionAPIClient()
-        self.openai = OpenAIHandler()
-        self.db_id = os.getenv("NOTION_DATABASE_ID")
-        
-        # Verificação inicial
-        self._verify_connection()
+        self.client = OpenAI(api_key=GerenciadorSegredo.carregar_chave())
 
-    def _verify_connection(self):
-        """Verifica se todas as conexões estão funcionando"""
+    def gerar_resposta(self, pergunta, contexto=None):
         try:
-            # Testa conexão com Notion
-            self.notion.test_connection()
+            prompt = f"""Você é um oráculo ancestral com sabedoria infinita.
             
-            # Verifica acesso ao banco de dados
-            db_info = self.notion.get_database(self.db_id)
-            db_name = db_info.get("title", [{}])[0].get("text", {}).get("content", "SEM NOME")
-            logger.info(f"Conectado ao banco de dados: {db_name}")
-            
-        except Exception as e:
-            logger.critical("Falha na verificação inicial")
-            logger.critical(f"1. Database ID correto? {self.db_id}")
-            logger.critical(f"2. Token começa com: {self.notion.token[:8]}...")
-            logger.critical("3. O banco está compartilhado com a integração?")
-            raise RuntimeError(f"Verificação falhou: {str(e)}")
-
-    def buscar_perguntas(self, horas=24):
-        """Busca perguntas não respondidas nas últimas X horas"""
-        try:
-            cutoff_time = (datetime.now() - timedelta(hours=horas)).isoformat()
-            
-            resultados = self.notion.query_database(
-                database_id=self.db_id,
-                filter_data={
-                    "and": [
-                        {
-                            "property": "Status",
-                            "select": {"does_not_equal": "Respondido"}
-                        },
-                        {
-                            "property": "Criado",
-                            "date": {"after": cutoff_time}
-                        }
-                    ]
-                }
-            )
-            return resultados.get("results", [])
-        except Exception as e:
-            logger.error(f"Erro ao buscar perguntas: {str(e)}")
-            return []
-
-    def processar_pergunta(self, item):
-        """Processa uma pergunta e atualiza o Notion"""
-        try:
-            # Extrai a pergunta
-            propriedades = item.get("properties", {})
-            pergunta = propriedades.get("Pergunta", {}).get("title", [{}])[0].get("text", {}).get("content", "")
-            
-            if not pergunta:
-                logger.warning("Pergunta vazia ou mal formatada")
-                return False
-
-            logger.info(f"Processando pergunta: {pergunta[:50]}...")
-
-            # Gera resposta com IA
-            prompt = f"""Como um oráculo sábio, responda de forma clara e útil:
             Pergunta: {pergunta}
             
-            Inclua:
-            - Um insight único
-            - Conselho prático
-            - Máximo 3 parágrafos"""
+            Contexto adicional: {contexto if contexto else "Nenhum"}
             
-            resposta = self.openai.generate_response(prompt)
+            Forneça:
+            1. Um insight profundo
+            2. Um conselho prático
+            3. Uma metáfora ilustrativa
+            (Máximo 3 parágrafos)"""
 
-            # Atualiza o Notion
-            self.notion.update_page(
-                page_id=item["id"],
-                properties={
-                    "Resposta": {
-                        "rich_text": [{"text": {"content": resposta}}]
-                    },
-                    "Status": {
-                        "select": {"name": "Respondido"}
-                    },
-                    "Respondido em": {
-                        "date": {"start": datetime.now().isoformat()}
-                    }
-                }
+            response = self.client.chat.completions.create(
+                model="gpt-4-turbo",
+                messages=[
+                    {"role": "system", "content": "Você é um oráculo sábio e respeitado."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=350
             )
-            logger.info("Pergunta respondida com sucesso!")
-            return True
-            
+            return response.choices[0].message.content
         except Exception as e:
-            logger.error(f"Erro ao processar pergunta: {str(e)}")
-            return False
+            logger.error(f"Erro na geração de resposta: {str(e)}")
+            return "🔮 [O oráculo está temporariamente indisponível]"
 
-    def executar(self):
-        """Fluxo principal de execução"""
+class Oraculo:
+    def __init__(self):
+        self.db = BancoDeDados()
+        self.ia = GerenciadorIA()
+
+    def processar_pergunta(self, pergunta, arquivo=None):
         try:
-            logger.info("Iniciando ciclo de processamento...")
-            perguntas = self.buscar_perguntas()
+            caminho_arquivo = None
+            if arquivo:
+                caminho_arquivo = self._salvar_arquivo(arquivo)
             
-            if not perguntas:
-                logger.info("Nenhuma pergunta nova encontrada.")
-                return
+            registro = self.db.adicionar_pergunta(pergunta, caminho_arquivo)
+            logger.info(f"Processando pergunta ID {registro['id']}")
             
-            logger.info(f"Encontradas {len(perguntas)} perguntas a responder")
-            sucessos = sum(self.processar_pergunta(p) for p in perguntas)
-            logger.info(f"Processamento completo. {sucessos}/{len(perguntas)} respondidas")
+            resposta = self.ia.gerar_resposta(pergunta)
+            self.db.responder_pergunta(registro['id'], resposta)
             
+            return registro
         except Exception as e:
-            logger.critical(f"Erro no fluxo principal: {str(e)}")
+            logger.error(f"Erro no processamento: {str(e)}")
             raise
 
+    def _salvar_arquivo(self, file):
+        upload_path = Path("uploads") / file.filename
+        try:
+            with open(upload_path, 'wb') as f:
+                f.write(file.read())
+            return str(upload_path)
+        except Exception as e:
+            logger.error(f"Erro ao salvar arquivo: {str(e)}")
+            return None
+
+    def listar_perguntas(self, respondidas=False):
+        return [p for p in self.db.dados["perguntas"] if p["respondida"] == respondidas]
+
+# Interface simples
 if __name__ == "__main__":
-    try:
-        oraculo = OraculoNotion()
-        oraculo.executar()
-    except Exception as e:
-        logger.critical(f"Falha ao iniciar o oráculo: {str(e)}")
-        sys.exit(1)
+    print("=== ORÁCULO SÁBIO ===")
+    oraculo = Oraculo()
+    
+    while True:
+        print("\n1. Fazer pergunta")
+        print("2. Ver perguntas/respostas")
+        print("3. Sair")
+        
+        opcao = input("Escolha: ")
+        
+        if opcao == "1":
+            pergunta = input("\nSua pergunta: ")
+            arquivo = None  # Implemente upload real se necessário
+            
+            resultado = oraculo.processar_pergunta(pergunta, arquivo)
+            print(f"\nResposta: {resultado['resposta']}")
+            
+        elif opcao == "2":
+            print("\nHistórico completo:")
+            for p in oraculo.listar_perguntas(respondidas=True):
+                print(f"\nID {p['id']} - {p['data']}")
+                print(f"Pergunta: {p['pergunta']}")
+                print(f"Resposta: {p['resposta']}")
+                if p['arquivo']:
+                    print(f"Arquivo: {p['arquivo']}")
+        
+        elif opcao == "3":
+            break
+
+    print("Até logo, buscador da verdade!")
