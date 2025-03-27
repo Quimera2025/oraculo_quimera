@@ -1,4 +1,4 @@
-name: Deploy Streamlit App
+name: Deploy to Streamlit Cloud
 on:
   push:
     branches: [main]
@@ -7,15 +7,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Python
+      - name: Set up Python 3.10
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
-          pip install notion-client openai
-      - uses: streamlit/streamlit-action@main
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt --no-cache-dir
+          pip list  # Para debug nos logs
+      - name: Deploy to Streamlit
+        uses: streamlit/streamlit-action@main
         with:
           app: app.py
           cloud: true
