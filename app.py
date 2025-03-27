@@ -2,6 +2,17 @@
 """
 Streamlit App para o Oráculo Sábio
 """
+import sys
+import os
+import platform
+import streamlit as st
+
+# Debug do ambiente
+st.sidebar.write("### Ambiente Remoto")
+st.sidebar.write(f"Python: {sys.version}")
+st.sidebar.write(f"Sistema: {platform.platform()}")
+st.sidebar.write("**Variáveis:**", list(os.environ.keys()))
+st.sidebar.write("**OPENAI_KEY:**", "OPENAI_API_KEY" in os.environ)
 import os
 if os.getenv("IS_STREAMLIT_CLOUD"):
     # Configurações específicas para a nuvem
