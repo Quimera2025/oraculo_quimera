@@ -1,145 +1,200 @@
-import streamlit as st
-import requests
-from PIL import Image
+#!/usr/bin/env python3
+"""
+Módulo Oráculo - Sistema de perguntas e respostas com integração OpenAI
+Versão otimizada para deploy no Streamlit Cloud
+"""
 
-# Configurações da página (otimizado para evitar conflitos de renderização)
-st.set_page_config(
-    page_title="Oráculo Quimera",
-    page_icon="🔮",
-    layout="centered",
-    initial_sidebar_state="expanded"
+__version__ = "1.0.0-cloud"
+
+import os
+import json
+import logging
+from datetime import datetime
+from pathlib import Path
+import traceback
+
+# Configuração inicial para evitar erros no Streamlit Cloud
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception as e:
+    logging.warning(f"Erro ao carregar dotenv: {str(e)}")
+
+# Configuração de pastas (ajustado para cloud)
+DATA_FOLDER = Path(__file__).parent / "data"
+UPLOAD_FOLDER = Path(__file__).parent / "uploads"
+
+# Criação de pastas segura
+try:
+    DATA_FOLDER.mkdir(exist_ok=True)
+    UPLOAD_FOLDER.mkdir(exist_ok=True)
+except Exception as e:
+    logging.error(f"Erro ao criar pastas: {str(e)}")
+
+# Configuração de logging otimizada
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(DATA_FOLDER/'oraculo.log'),
+        logging.StreamHandler()
+    ]
 )
+logger = logging.getLogger('oraculo')
 
-# CSS customizado (com seletores únicos)
-st.markdown("""
-    <style>
-    .quimera-title { 
-        font-size: 2.5rem !important;
-        color: #6a0dad !important;
-        margin-bottom: 20px !important;
-    }
-    .quimera-btn button {
-        background-color: #6a0dad !important;
-        color: white !important;
-        transition: all 0.3s !important;
-    }
-    .quimera-btn button:hover {
-        opacity: 0.8 !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# Título e descrição (com classes únicas)
-st.markdown('<h1 class="quimera-title">Oráculo Quimera</h1>', unsafe_allow_html=True)
-st.markdown("""
-    <div style="margin-bottom:30px">
-    Consulte dados da empresa em tempo real usando comandos simples.
-    </div>
-""", unsafe_allow_html=True)
-
-# Sidebar com exemplos (estrutura simplificada)
-with st.sidebar:
-    st.header("📋 Comandos Válidos", divider="purple")
-    st.markdown("""
-    - `faturamento`: Dados financeiros  
-    - `clientes`: Lista de clientes ativos  
-    - `projetos`: Status dos projetos  
-    - `documentos`: Acessar arquivos corporativos  
-    """)
-
-# Campo de comando com key única
-comando = st.text_input(
-    "Digite seu comando:",
-    key="input_comando_principal",
-    placeholder="Ex: faturamento março"
-)
-
-# Container principal para evitar flickering
-main_container = st.container()
-
-# Botões de ação (estrutura redesenhada)
-btn_col1, btn_col2 = st.columns(2)
-with btn_col1:
-    btn_consultar = st.button(
-        "🔍 Consultar",
-        use_container_width=True,
-        key="btn_consultar_principal",
-        type="primary"
-    )
-
-with btn_col2:
-    btn_voz = st.button(
-        "🎤 Comando por Voz",
-        use_container_width=True,
-        key="btn_voz_principal"
-    )
-
-# Lógica principal (com tratamento de estado)
-if btn_consultar or btn_voz:
-    with main_container:
-        if not comando:
-            st.warning("⚠️ Por favor, digite um comando válido.")
-            st.stop()
-
-        with st.spinner("Consultando base de dados..."):
-            try:
-                # Requisição para o Make
-                resposta = requests.post(
-                    "https://hook.us2.make.com/ud0m37h2c2dhabktb5hrbc8171thanj9",
-                    json={
-                        "comando": comando.strip().lower(),
-                        "tipo_consulta": "padrao"
-                    },
-                    timeout=15
-                )
-
-                # Tratamento de respostas
-                resposta.raise_for_status()
-                dados = resposta.json()
-
-                if dados.get("erro"):
-                    st.error(f"❌ {dados['erro']}")
-                else:
-                    st.success(f"✅ {dados.get('texto', 'Resposta recebida')}")
-                    
-                    if "grafico" in dados:
-                        st.image(dados["grafico"], use_column_width=True)
-                    
-                    if "arquivo" in dados:
-                        st.download_button(
-                            label="📥 Baixar Documento",
-                            data=dados["arquivo"],
-                            file_name=f"documento_{comando}.pdf",
-                            key=f"btn_download_{comando}"
-                        )
-
-            except requests.exceptions.Timeout:
-                st.error("⌛ Tempo de resposta excedido. Tente novamente.")
-            except requests.exceptions.RequestException as e:
-                st.error(f"🔌 Erro de conexão: {str(e)}")
-            except ValueError:
-                st.error("📦 Resposta inválida da API.")
-            except Exception as e:
-                st.error(f"⚠️ Erro inesperado: {str(e)}")
-
-# Seção de histórico (com cache)
-with st.expander("📊 Histórico de Consultas", expanded=False):
-    if 'historico' not in st.session_state:
-        st.session_state.historico = []
+class BancoDeDados:
+    """Versão otimizada para cloud com tratamento de erros"""
     
-    if btn_consultar and comando:
-        st.session_state.historico.append(comando)
-    
-    if st.session_state.historico:
-        st.write("Últimos comandos executados:")
-        for idx, cmd in enumerate(reversed(st.session_state.historico[-5:]), 1):
-            st.markdown(f"{idx}. `{cmd}`")
-    else:
-        st.write("Nenhuma consulta realizada ainda.")
+    def __init__(self):
+        self.arquivo = DATA_FOLDER / "perguntas.json"
+        self.dados = {"perguntas": []}
+        self._carregar()
 
-# Nota sobre voz (condicional)
-if btn_voz:
-    st.info("""
-    🎤 O comando por voz está em fase de testes. 
-    Por favor, utilize o campo de texto para consultas no momento.
-    """)
+    def _carregar(self):
+        try:
+            if self.arquivo.exists():
+                with open(self.arquivo, 'r', encoding='utf-8') as f:
+                    self.dados = json.load(f)
+        except Exception as e:
+            logger.error(f"Erro ao carregar dados: {str(e)}")
+            self.dados = {"perguntas": []}
+
+    def salvar(self):
+        try:
+            with open(self.arquivo, 'w', encoding='utf-8') as f:
+                json.dump(self.dados, f, indent=2, ensure_ascii=False)
+            return True
+        except Exception as e:
+            logger.error(f"Erro ao salvar dados: {str(e)}")
+            return False
+
+    def adicionar_pergunta(self, pergunta, contexto=None):
+        registro = {
+            "id": len(self.dados["perguntas"]) + 1,
+            "pergunta": pergunta,
+            "contexto": contexto,
+            "resposta": None,
+            "data": datetime.now().isoformat(),
+            "respondida": False
+        }
+        self.dados["perguntas"].append(registro)
+        return registro if self.salvar() else None
+
+    def responder_pergunta(self, id_pergunta, resposta):
+        for item in self.dados["perguntas"]:
+            if item["id"] == id_pergunta:
+                item.update({
+                    "resposta": resposta,
+                    "respondida": True,
+                    "data_resposta": datetime.now().isoformat()
+                })
+                return self.salvar()
+        return False
+
+class GerenciadorIA:
+    """Classe com tratamento robusto para falhas na API"""
+    
+    def __init__(self):
+        self.api_key = os.getenv("OPENAI_API_KEY")
+        self.client = None
+        self._inicializar_cliente()
+
+    def _inicializar_cliente(self):
+        if not self.api_key:
+            logger.warning("Chave OpenAI não configurada")
+            return
+
+        try:
+            from openai import OpenAI
+            self.client = OpenAI(api_key=self.api_key)
+        except ImportError:
+            logger.error("Biblioteca OpenAI não instalada")
+        except Exception as e:
+            logger.error(f"Erro ao inicializar cliente OpenAI: {str(e)}")
+
+    def gerar_resposta(self, pergunta, contexto=None):
+        if not self.client:
+            return "⚠️ Serviço indisponível (configuração incompleta)"
+
+        try:
+            messages = [{
+                "role": "system",
+                "content": "Você é um oráculo sábio que fornece conselhos precisos."
+            }]
+            
+            if contexto:
+                messages.append({
+                    "role": "system",
+                    "content": f"Contexto adicional: {contexto}"
+                })
+                
+            messages.append({
+                "role": "user",
+                "content": pergunta
+            })
+
+            response = self.client.chat.completions.create(
+                model=os.getenv("MODEL_IA", "gpt-3.5-turbo"),
+                messages=messages,
+                temperature=0.7,
+                max_tokens=500
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            logger.error(f"Erro na geração de resposta: {str(e)}")
+            return "🔮 O oráculo está temporariamente indisponível"
+
+class Oraculo:
+    """Classe principal com proteção contra erros no Streamlit"""
+    
+    def __init__(self):
+        self.db = BancoDeDados()
+        self.ia = GerenciadorIA()
+        self._configurar_ambiente()
+
+    def _configurar_ambiente(self):
+        """Prepara o ambiente para execução no Streamlit Cloud"""
+        try:
+            import streamlit as st
+            st.set_page_config(
+                page_title="Oráculo Sábio",
+                page_icon="🔮",
+                layout="centered"
+            )
+        except:
+            pass
+
+    def processar_pergunta(self, pergunta, contexto=None):
+        try:
+            registro = self.db.adicionar_pergunta(pergunta, contexto)
+            if not registro:
+                return {"erro": "Falha ao registrar pergunta"}
+                
+            resposta = self.ia.gerar_resposta(pergunta, contexto)
+            if not self.db.responder_pergunta(registro["id"], resposta):
+                return {"erro": "Falha ao registrar resposta"}
+                
+            return registro
+        except Exception as e:
+            logger.critical(f"Erro no processamento: {str(e)}")
+            return {"erro": f"Falha crítica: {str(e)}"}
+
+# Interface segura para execução local
+if __name__ == "__main__":
+    print(f"=== ORÁCULO SÁBIO (v{__version__}) ===")
+    print("Modo local ativado (digite 'sair' para encerrar)\n")
+    
+    oraculo = Oraculo()
+    
+    try:
+        while True:
+            pergunta = input("Pergunta: ").strip()
+            if pergunta.lower() == 'sair':
+                break
+                
+            resultado = oraculo.processar_pergunta(pergunta)
+            print(f"\nResposta: {resultado.get('resposta', '[sem resposta]')}\n")
+    except KeyboardInterrupt:
+        print("\nEncerrado pelo usuário")
+    except Exception as e:
+        logger.critical(f"Erro fatal: {str(e)}")
