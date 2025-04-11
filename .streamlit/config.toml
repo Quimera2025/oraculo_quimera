@@ -3,5 +3,11 @@ headless = true
 port = 8080
 enableCORS = false
 enableXsrfProtection = true
+maxUploadSize = 50  # Tamanho máximo em MB para uploads
+
+[client]
+caching = false  # 🔥 Crucial para evitar erros de DOM
+
 [browser]
 serverAddress = "0.0.0.0"
+gatherUsageStats = false  # Desativa telemetria
