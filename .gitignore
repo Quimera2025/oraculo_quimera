@@ -1,0 +1,11 @@
+# Dados sensíveis
+.env
+*.env
+
+# Logs e dados
+data/
+logs/
+
+# Python
+__pycache__/
+*.py[cod]
