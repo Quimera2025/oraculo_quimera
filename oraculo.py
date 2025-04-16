@@ -98,20 +98,24 @@ class GerenciadorIA:
         self.api_key = os.getenv("OPENAI_API_KEY")
         self.client = None
         self._inicializar_cliente()
-
+    
     def _inicializar_cliente(self):
-        if not self.api_key:
-            logger.warning("Chave OpenAI não configurada")
-            return
+    if not self.api_key:
+        logger.warning("Chave OpenAI não configurada")
+        return None  # Adicione este return
 
-        try:
-            from openai import OpenAI
-            self.client = OpenAI(api_key=self.api_key)
-        except ImportError:
-            logger.error("Biblioteca OpenAI não instalada")
-        except Exception as e:
-            logger.error(f"Erro ao inicializar cliente OpenAI: {str(e)}")
-
+    try:
+        from openai import OpenAI
+        self.client = OpenAI(api_key=self.api_key)
+        logger.info("Cliente OpenAI inicializado com sucesso")  # Confirmação
+        return True
+    except ImportError:
+        logger.error("Biblioteca OpenAI não instalada")
+        return False
+    except Exception as e:
+        logger.error(f"Erro ao inicializar cliente OpenAI: {str(e)}")
+        return False
+    
     def gerar_resposta(self, pergunta, contexto=None):
         if not self.client:
             return "⚠️ Serviço indisponível (configuração incompleta)"
