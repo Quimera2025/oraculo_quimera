@@ -102,12 +102,17 @@ class GerenciadorIA:
     def _inicializar_cliente(self):
         if not self.api_key:
             logger.warning("Chave OpenAI não configurada")
-            return None  # Adicione este return
+            return None
 
         try:
             from openai import OpenAI
-            self.client = OpenAI(api_key=self.api_key)
-            logger.info("Cliente OpenAI inicializado com sucesso")  # Confirmação
+            # Configuração correta para v1.0+ (sem parâmetro proxies)
+            self.client = OpenAI(
+                api_key=self.api_key,
+                # Configuração alternativa se precisar de proxy:
+                # http_client=httpx.Client(proxies="http://seu-proxy:porta")
+            )
+            logger.info("Cliente OpenAI inicializado com sucesso")
             return True
         except ImportError:
             logger.error("Biblioteca OpenAI não instalada")
