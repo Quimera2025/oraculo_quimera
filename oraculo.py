@@ -117,11 +117,11 @@ class GerenciadorIA:
             return None
 
         try:
-            # Inicialização segura e moderna
+            # Agora usando a classe OpenAI importada corretamente
             self.client = OpenAI(
                 api_key=self.api_key,
-                _strict_response_validation=True  # Modo estrito
-            )
+                _strict_response_validation=True
+                )
             logger.info("Cliente OpenAI inicializado com sucesso")
             return True
         except Exception as e:
