@@ -106,7 +106,7 @@ class GerenciadorIA:
 
         try:
             from openai import OpenAI
-            # 👇🏼 INICIALIZAÇÃO SIMPLES SEM PROXY (versão correta)
+            # Versão sanitizada - sem nenhum parâmetro adicional
             self.client = OpenAI(api_key=self.api_key)
             logger.info("Cliente OpenAI inicializado com sucesso")
             return True
@@ -115,6 +115,7 @@ class GerenciadorIA:
             return False
         except Exception as e:
             logger.error(f"Erro ao inicializar cliente OpenAI: {str(e)}")
+            traceback.print_exc()  # Adicionado para debug detalhado
             return False
     
     def gerar_resposta(self, pergunta, contexto=None):
