@@ -138,7 +138,7 @@ class GerenciadorIA:
             })
 
             response = self.client.chat.completions.create(
-                model=os.getenv("MODEL_IA", "gpt-3.5-turbo"),
+                model=os.getenv("MODEL_IA", "gpt-3.5-turbo-0125"),
                 messages=messages,
                 temperature=0.7,
                 max_tokens=500
