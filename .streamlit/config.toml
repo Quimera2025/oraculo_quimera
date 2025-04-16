@@ -1,11 +1,15 @@
 [server]
 headless = true
-port = 8501
+port = 8080
 enableCORS = false
 enableXsrfProtection = true
-maxUploadSize = 50
-startupTimeout = 300
+maxMessageSize = 50
+
+[client]
+caching = false
+showErrorDetails = false  # Reduz vazamento de informações
 
 [browser]
 serverAddress = "0.0.0.0"
-gatherUsageStats = false
+serverPort = 8080
+
