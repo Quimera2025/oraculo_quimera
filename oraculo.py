@@ -106,12 +106,8 @@ class GerenciadorIA:
 
         try:
             from openai import OpenAI
-            # Configuração correta para v1.0+ (sem parâmetro proxies)
-            self.client = OpenAI(
-                api_key=self.api_key,
-                # Configuração alternativa se precisar de proxy:
-                # http_client=httpx.Client(proxies="http://seu-proxy:porta")
-            )
+            # 👇🏼 INICIALIZAÇÃO SIMPLES SEM PROXY (versão correta)
+            self.client = OpenAI(api_key=self.api_key)
             logger.info("Cliente OpenAI inicializado com sucesso")
             return True
         except ImportError:
