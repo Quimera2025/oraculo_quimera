@@ -179,6 +179,29 @@ class Oraculo:
             logger.critical(f"Erro no processamento: {str(e)}")
             return {"erro": f"Falha crítica: {str(e)}"}
 
+def main():
+    """Interface principal para o Streamlit"""
+    import streamlit as st
+    
+    oraculo = Oraculo()
+    st.title("🔮 Oráculo Sábio")
+    
+    with st.form("pergunta_form"):
+        pergunta = st.text_area("Faça sua pergunta ao oráculo:")
+        contexto = st.text_input("Contexto adicional (opcional):")
+        submitted = st.form_submit_button("Enviar")
+        
+        if submitted and pergunta:
+            with st.spinner("Consultando o oráculo..."):
+                resultado = oraculo.processar_pergunta(pergunta, contexto)
+                if "erro" in resultado:
+                    st.error(resultado["erro"])
+                else:
+                    st.success(resultado.get("resposta", "Sem resposta"))
+
+# Garante que a interface roda no Streamlit Cloud
+if "streamlit" in __import__("sys").modules:
+    main()
 # Interface segura para execução local
 if __name__ == "__main__":
     print(f"=== ORÁCULO SÁBIO (v{__version__}) ===")
