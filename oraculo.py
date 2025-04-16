@@ -13,6 +13,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 import traceback
+import openai
 from openai import OpenAI
 
 # Verificação do ambiente
