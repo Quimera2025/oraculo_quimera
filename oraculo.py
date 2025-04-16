@@ -7,11 +7,14 @@ Versão otimizada para deploy no Streamlit Cloud
 __version__ = "1.0.0-cloud"
 
 import os
+os.environ.pop('HTTP_PROXY', None)
+os.environ.pop('HTTPS_PROXY', None)
 import json
 import logging
 from datetime import datetime
 from pathlib import Path
 import traceback
+import openai
 
 # Configuração inicial para evitar erros no Streamlit Cloud
 try:
@@ -100,23 +103,27 @@ class GerenciadorIA:
         self._inicializar_cliente()
     
     def _inicializar_cliente(self):
-        if not self.api_key:
-            logger.warning("Chave OpenAI não configurada")
-            return None
+    if not self.api_key:
+        logger.warning("Chave OpenAI não configurada")
+        return None
 
-        try:
-            from openai import OpenAI
-            # Versão sanitizada - sem nenhum parâmetro adicional
-            self.client = OpenAI(api_key=self.api_key)
-            logger.info("Cliente OpenAI inicializado com sucesso")
-            return True
-        except ImportError:
-            logger.error("Biblioteca OpenAI não instalada")
-            return False
-        except Exception as e:
-            logger.error(f"Erro ao inicializar cliente OpenAI: {str(e)}")
-            traceback.print_exc()  # Adicionado para debug detalhado
-            return False
+    try:
+        from openai import OpenAI
+        # Configuração ultra-simplificada
+        self.client = OpenAI(
+            api_key=self.api_key,
+            # Força a criação de novo client sem herdar configurações
+            http_client=None
+        )
+        logger.info("Cliente OpenAI inicializado com sucesso")
+        return True
+    except ImportError:
+        logger.error("Biblioteca OpenAI não instalada")
+        return False
+    except Exception as e:
+        logger.error(f"Erro ao inicializar cliente OpenAI: {str(e)}")
+        logger.error(f"Versão OpenAI instalada: {openai.__version__}")
+        return False
     
     def gerar_resposta(self, pergunta, contexto=None):
         if not self.client:
