@@ -7,14 +7,23 @@ Versão otimizada para deploy no Streamlit Cloud
 __version__ = "1.0.0-cloud"
 
 import os
-os.environ.pop('HTTP_PROXY', None)
-os.environ.pop('HTTPS_PROXY', None)
+import sys
 import json
 import logging
 from datetime import datetime
 from pathlib import Path
 import traceback
 import openai
+
+# Verificação do ambiente
+print(f"Python {sys.version}")
+print(f"OpenAI {openai.__version__}")
+print(f"Arquivo openai: {openai.__file__}")
+
+# Remoção de variáveis de ambiente que podem interferir
+os.environ.pop('HTTP_PROXY', None)
+os.environ.pop('HTTPS_PROXY', None)
+os.environ.pop('ALL_PROXY', None)
 
 # Configuração inicial para evitar erros no Streamlit Cloud
 try:
@@ -108,21 +117,17 @@ class GerenciadorIA:
             return None
 
         try:
-            from openai import OpenAI
-            # Configuração ultra-simplificada
+            # Inicialização segura e moderna
             self.client = OpenAI(
                 api_key=self.api_key,
-                # Força a criação de novo client sem herdar configurações
-                http_client=None
+                _strict_response_validation=True  # Modo estrito
             )
             logger.info("Cliente OpenAI inicializado com sucesso")
             return True
-        except ImportError:
-            logger.error("Biblioteca OpenAI não instalada")
-            return False
         except Exception as e:
-            logger.error(f"Erro ao inicializar cliente OpenAI: {str(e)}")
-            logger.error(f"Versão OpenAI instalada: {openai.__version__}")
+            logger.error(f"Falha crítica na inicialização: {str(e)}")
+            logger.error(f"Tipo do erro: {type(e).__name__}")
+            traceback.print_exc()
             return False
     
     def gerar_resposta(self, pergunta, contexto=None):
@@ -215,6 +220,7 @@ def main():
 # Garante que a interface roda no Streamlit Cloud
 if "streamlit" in __import__("sys").modules:
     main()
+
 # Interface segura para execução local
 if __name__ == "__main__":
     print(f"=== ORÁCULO SÁBIO (v{__version__}) ===")
