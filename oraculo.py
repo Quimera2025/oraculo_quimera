@@ -49,6 +49,8 @@ except Exception as e:
 # --- Configuração de Logging Otimizada ---
 log_file_path = DATA_FOLDER / 'oraculo.log'
 log_handlers = []
+# Initialize file_handler to None for later check
+file_handler = None
 try:
     # File Handler
     file_handler = logging.FileHandler(log_file_path, encoding='utf-8')
@@ -67,7 +69,9 @@ logging.basicConfig(
     handlers=log_handlers
 )
 logger = logging.getLogger('oraculo') # Define logger *after* basicConfig
-logger.info(f"Logging configurado. Arquivo de log: {'Ativado' if file_handler in log_handlers else 'Desativado'}")
+# Check if file_handler was successfully added before logging its status
+log_file_status = 'Ativado' if file_handler and file_handler in log_handlers else 'Desativado'
+logger.info(f"Logging configurado. Arquivo de log: {log_file_status}")
 
 
 # --- Carregamento de Variáveis de Ambiente (dotenv) ---
@@ -231,12 +235,16 @@ class GerenciadorIA:
 
             timeouts = httpx.Timeout(connect=connect_timeout, read=read_timeout, write=write_timeout, pool=pool_timeout)
 
+            # --- CORREÇÃO APLICADA AQUI (ImportError h2) ---
+            # Commented out http2=True because the 'h2' package is optional
+            # and might not be installed. Install with 'pip install httpx[http2]'
+            # if HTTP/2 support is desired and available.
             custom_http_client = httpx.Client(
-                # No proxies argument here
-                http2=True, # Enable HTTP/2 if desired
+                # http2=True, # Requires 'h2' package installed
                 timeout=timeouts # Set default timeouts for the client
             )
-            logger.info(f"Cliente HTTPX criado com timeouts: {timeouts}")
+            # --- FIM DA CORREÇÃO ---
+            logger.info(f"Cliente HTTPX criado com timeouts: {timeouts} (HTTP/2 desativado)")
 
             # 2. Pass the custom httpx client to the OpenAI constructor.
             logger.info("Inicializando cliente OpenAI com cliente HTTPX customizado...")
@@ -258,10 +266,25 @@ class GerenciadorIA:
                  self.client.models.list(timeout=10)
                  logger.info("Conexão com a API OpenAI verificada com sucesso.")
             except Exception as api_err:
-                 logger.error(f"Falha ao verificar conexão com API OpenAI: {api_err}")
+                 # Log specific error types if possible
+                 if isinstance(api_err, openai.AuthenticationError):
+                     logger.error(f"Falha na verificação da conexão: Erro de autenticação (verifique a API Key). Detalhes: {api_err}")
+                 elif isinstance(api_err, openai.APIConnectionError):
+                     logger.error(f"Falha na verificação da conexão: Erro de conexão com a API. Detalhes: {api_err}")
+                 elif isinstance(api_err, openai.APITimeoutError):
+                      logger.error(f"Falha na verificação da conexão: Timeout. Detalhes: {api_err}")
+                 else:
+                     logger.error(f"Falha ao verificar conexão com API OpenAI: {type(api_err).__name__} - {api_err}")
                  logger.warning("Não foi possível verificar a conexão, mas a inicialização do cliente continua.")
 
+
             return True # Indicate success
+        except ImportError as e:
+             # Specific handling for the h2 import error if http2=True is re-enabled
+             logger.error(f"Falha na inicialização do cliente HTTPX: {e}")
+             logger.error("Se você habilitou http2=True, instale o suporte com: pip install httpx[http2]")
+             self.client = None
+             return False
         except Exception as e:
             logger.error(f"Falha crítica na inicialização do cliente OpenAI: {str(e)}")
             logger.error(f"Tipo do erro: {type(e).__name__}")
@@ -294,17 +317,14 @@ class GerenciadorIA:
             model = os.getenv("MODEL_IA", "gpt-3.5-turbo")
             temperature = float(os.getenv("IA_TEMPERATURE", 0.7))
             max_tokens = int(os.getenv("IA_MAX_TOKENS", 500))
-            # Timeout for this specific API call (can override client default)
-            # api_call_timeout = float(os.getenv("IA_API_TIMEOUT", 30.0))
 
-            logger.info(f"Usando modelo={model}, temp={temperature}, max_tokens={max_tokens}") # Removed timeout log here as it's set on client
+            logger.info(f"Usando modelo={model}, temp={temperature}, max_tokens={max_tokens}")
 
             response = self.client.chat.completions.create(
                 model=model,
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                # timeout=api_call_timeout # Timeout is now set on the client or OpenAI constructor
             )
             resposta_ia = response.choices[0].message.content.strip()
             logger.info("Resposta recebida da OpenAI.")
@@ -398,14 +418,12 @@ def main_streamlit():
         print("Erro: Streamlit não está instalado. Execute 'pip install streamlit' para usar a interface gráfica.")
         return
 
-    # --- CORREÇÃO APLICADA AQUI (Streamlit Error) ---
     # Call set_page_config() as the VERY FIRST Streamlit command.
     st.set_page_config(
         page_title="Oráculo Sábio",
         page_icon="🔮",
         layout="centered"
     )
-    # --- FIM DA CORREÇÃO ---
 
     # Initialize Oraculo only once using Streamlit's session state
     if 'oraculo_instance' not in st.session_state:
@@ -532,3 +550,4 @@ if __name__ == "__main__":
     else:
          logger.info("Executando no modo console local.")
          main_local()
+
