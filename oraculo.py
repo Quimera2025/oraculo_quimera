@@ -16,80 +16,103 @@ import traceback
 import openai
 # Ensure OpenAI class is imported correctly
 from openai import OpenAI
-# --- ADICIONADO: Importar httpx ---
+# Import httpx
 import httpx
-# --- FIM DA ADIÇÃO ---
-
-
-# Verificação do ambiente
-print(f"Python {sys.version}")
-print(f"OpenAI {openai.__version__}")
-print(f"Arquivo openai: {openai.__file__}")
-# Add httpx version for debugging
+# Import Streamlit (conditionally if needed, but good practice to have it top-level if used)
 try:
-    import httpx
-    print(f"httpx {httpx.__version__}")
+    import streamlit as st
 except ImportError:
-    print("httpx não está instalado.")
+    st = None # Assign None if streamlit is not installed
 
 
-# Remoção de variáveis de ambiente que podem interferir
-# (Good practice, especially in cloud environments)
-os.environ.pop('HTTP_PROXY', None)
-os.environ.pop('HTTPS_PROXY', None)
-os.environ.pop('ALL_PROXY', None)
-# Also remove lowercase versions just in case
-os.environ.pop('http_proxy', None)
-os.environ.pop('https_proxy', None)
-os.environ.pop('all_proxy', None)
-
-# Configuração inicial para evitar erros no Streamlit Cloud
-try:
-    # Attempt to load environment variables from .env file if present
-    from dotenv import load_dotenv
-    load_dotenv()
-    logger.info(".env file loaded if present.") # Log success
-except ImportError:
-    # If dotenv is not installed, log a warning but continue
-    logging.warning("dotenv not installed, skipping .env file loading.")
-except Exception as e:
-    # Log other potential errors during dotenv loading
-    logging.warning(f"Erro ao carregar dotenv: {str(e)}")
-
-# Configuração de pastas (ajustado para cloud)
+# --- Configuração de Pastas ---
 # Use Path objects for better path manipulation
-DATA_FOLDER = Path(__file__).parent / "data"
-UPLOAD_FOLDER = Path(__file__).parent / "uploads"
+# Define DATA_FOLDER relative to the script file location
+try:
+    # Get the directory containing the script file
+    SCRIPT_DIR = Path(__file__).parent.resolve()
+except NameError:
+     # Fallback for environments where __file__ is not defined (e.g., some notebooks)
+     SCRIPT_DIR = Path.cwd()
 
-# Criação de pastas segura
+DATA_FOLDER = SCRIPT_DIR / "data"
+UPLOAD_FOLDER = SCRIPT_DIR / "uploads"
+
+# --- Criação de Pastas Segura ---
 try:
     DATA_FOLDER.mkdir(parents=True, exist_ok=True) # Add parents=True
     UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True) # Add parents=True
 except Exception as e:
-    # Use logger here as it might be configured already
-    logging.error(f"Erro ao criar pastas: {str(e)}")
+    # Use basic print here as logger might not be configured yet
+    print(f"[ERROR] Erro ao criar pastas: {str(e)}", file=sys.stderr)
 
-# Configuração de logging otimizada
-# Log to both file and console stream
+# --- Configuração de Logging Otimizada ---
 log_file_path = DATA_FOLDER / 'oraculo.log'
+log_handlers = []
 try:
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(name)s - %(message)s', # Added logger name
-        handlers=[
-            logging.FileHandler(log_file_path, encoding='utf-8'), # Specify encoding
-            logging.StreamHandler(sys.stdout) # Log to stdout
-        ]
-    )
-    # Define logger after basicConfig
-    logger = logging.getLogger('oraculo')
-    logger.info(f"Logging configurado. Arquivo de log: {log_file_path}")
-except Exception as log_err:
-     # Fallback logging if file handler fails
-     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s', handlers=[logging.StreamHandler(sys.stdout)])
-     logger = logging.getLogger('oraculo')
-     logger.error(f"Erro ao configurar logging para arquivo {log_file_path}: {log_err}. Usando apenas console.")
+    # File Handler
+    file_handler = logging.FileHandler(log_file_path, encoding='utf-8')
+    log_handlers.append(file_handler)
+except Exception as log_file_err:
+     print(f"[WARNING] Erro ao configurar logging para arquivo {log_file_path}: {log_file_err}. Log de arquivo desativado.", file=sys.stderr)
 
+# Console Handler (always add)
+stream_handler = logging.StreamHandler(sys.stdout)
+log_handlers.append(stream_handler)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(name)s - %(message)s', # Added logger name
+    handlers=log_handlers
+)
+logger = logging.getLogger('oraculo') # Define logger *after* basicConfig
+logger.info(f"Logging configurado. Arquivo de log: {'Ativado' if file_handler in log_handlers else 'Desativado'}")
+
+
+# --- Carregamento de Variáveis de Ambiente (dotenv) ---
+# Moved AFTER logger setup
+try:
+    from dotenv import load_dotenv
+    dotenv_path = SCRIPT_DIR / '.env' # Look for .env in the script directory
+    if dotenv_path.exists():
+        load_dotenv(dotenv_path=dotenv_path)
+        logger.info(f"Arquivo .env carregado de {dotenv_path}")
+    else:
+        logger.info("Arquivo .env não encontrado, pulando carregamento.")
+except ImportError:
+    logger.warning("dotenv não instalado, skipping .env file loading.")
+except Exception as e:
+    logger.warning(f"Erro ao carregar dotenv: {str(e)}")
+
+
+# --- Verificação do Ambiente ---
+logger.info(f"Python {sys.version}")
+logger.info(f"OpenAI {openai.__version__}")
+logger.info(f"Arquivo openai: {openai.__file__}")
+try:
+    logger.info(f"httpx {httpx.__version__}")
+except Exception:
+     logger.warning("Não foi possível obter a versão do httpx.")
+if st:
+    try:
+        logger.info(f"Streamlit {st.__version__}")
+    except Exception:
+        logger.warning("Não foi possível obter a versão do Streamlit.")
+else:
+    logger.info("Streamlit não importado/instalado.")
+
+
+# --- Remoção de Variáveis de Proxy (Opcional, mas pode ajudar) ---
+# Moved after logging setup and dotenv loading
+proxies_to_remove = ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy']
+for proxy_var in proxies_to_remove:
+    if proxy_var in os.environ:
+        os.environ.pop(proxy_var, None)
+        logger.info(f"Variável de ambiente de proxy removida: {proxy_var}")
+
+
+# --- Classes Principais ---
 
 class BancoDeDados:
     """Versão otimizada para cloud com tratamento de erros"""
@@ -194,54 +217,54 @@ class GerenciadorIA:
     def _inicializar_cliente(self):
         """Initializes the OpenAI client, explicitly providing an httpx client."""
         if not self.api_key:
-            # Log a clear warning if the API key is missing
             logger.warning("Chave API da OpenAI (OPENAI_API_KEY) não encontrada nas variáveis de ambiente.")
             return False # Indicate failure clearly
 
         try:
-            # --- CORREÇÃO APLICADA AQUI (Tentativa 2) ---
             # 1. Explicitly create an httpx client instance.
-            #    We create a basic one *without* proxies, as the goal is to avoid
-            #    the problematic 'proxies' argument being passed internally.
             logger.info("Criando cliente HTTPX explícito...")
+            # Set timeout for the client itself
+            connect_timeout = float(os.getenv("HTTPX_CONNECT_TIMEOUT", 10.0))
+            read_timeout = float(os.getenv("HTTPX_READ_TIMEOUT", 30.0))
+            write_timeout = float(os.getenv("HTTPX_WRITE_TIMEOUT", 30.0))
+            pool_timeout = float(os.getenv("HTTPX_POOL_TIMEOUT", 10.0))
+
+            timeouts = httpx.Timeout(connect=connect_timeout, read=read_timeout, write=write_timeout, pool=pool_timeout)
+
             custom_http_client = httpx.Client(
-                 # Explicitly disable proxy lookup from environment if needed,
-                 # although removing env vars should be sufficient.
-                 # proxies=None, # Uncomment if removing env vars doesn't work
-                 # http2=True, # Enable HTTP/2 if desired
-                 # timeout=30.0 # Set a default timeout
+                # No proxies argument here
+                http2=True, # Enable HTTP/2 if desired
+                timeout=timeouts # Set default timeouts for the client
             )
-            logger.info("Cliente HTTPX criado.")
+            logger.info(f"Cliente HTTPX criado com timeouts: {timeouts}")
 
             # 2. Pass the custom httpx client to the OpenAI constructor.
             logger.info("Inicializando cliente OpenAI com cliente HTTPX customizado...")
+            # Set API call timeout separately if needed, otherwise uses httpx client timeout
+            api_timeout_seconds = float(os.getenv("OPENAI_API_TIMEOUT", 60.0)) # e.g., 60 seconds total for API call
+
             self.client = OpenAI(
                 api_key=self.api_key,
-                http_client=custom_http_client # Pass the explicitly created client
+                http_client=custom_http_client, # Pass the explicitly created client
+                timeout=api_timeout_seconds # Set overall timeout for OpenAI API calls
             )
-            # --- FIM DA CORREÇÃO ---
 
-            logger.info("Cliente OpenAI inicializado com sucesso usando HTTPX customizado.")
+            logger.info(f"Cliente OpenAI inicializado com sucesso usando HTTPX customizado (Timeout API: {api_timeout_seconds}s).")
 
-            # Optional: Add a simple test call to verify connection
+            # 3. Optional: Verify connection
             try:
                  logger.info("Verificando conexão com a API OpenAI...")
-                 self.client.models.list(timeout=10) # Add timeout to verification
+                 # Use a short timeout for the verification call
+                 self.client.models.list(timeout=10)
                  logger.info("Conexão com a API OpenAI verificada com sucesso.")
             except Exception as api_err:
                  logger.error(f"Falha ao verificar conexão com API OpenAI: {api_err}")
-                 # Decide if this should be fatal for initialization
-                 # self.client = None # Reset client if verification fails?
-                 # return False
                  logger.warning("Não foi possível verificar a conexão, mas a inicialização do cliente continua.")
-
 
             return True # Indicate success
         except Exception as e:
-            # Log detailed error information during initialization
             logger.error(f"Falha crítica na inicialização do cliente OpenAI: {str(e)}")
             logger.error(f"Tipo do erro: {type(e).__name__}")
-            # Log the traceback for debugging
             logger.error(traceback.format_exc())
             self.client = None # Ensure client is None if init fails
             return False # Indicate failure
@@ -249,52 +272,44 @@ class GerenciadorIA:
     def gerar_resposta(self, pergunta, contexto=None):
         """Generates a response using the OpenAI API."""
         if not self.client:
-            # Return a user-friendly message if the client isn't ready
             logger.warning("Tentativa de gerar resposta sem cliente OpenAI inicializado.")
             return "⚠️ Serviço de IA indisponível no momento (falha na inicialização ou configuração)."
 
         try:
-            # Construct the messages list for the chat completion
             messages = [{
                 "role": "system",
-                "content": "Você é um oráculo sábio que fornece conselhos precisos e ponderados." # Refined prompt
+                "content": "Você é um oráculo sábio que fornece conselhos precisos e ponderados."
             }]
-
             if contexto:
-                # Add context if provided
                 messages.append({
                     "role": "system",
                     "content": f"Contexto adicional fornecido: {contexto}"
                 })
-
-            # Add the user's question
             messages.append({
                 "role": "user",
                 "content": pergunta
             })
 
-            # Call the OpenAI API
             logger.info(f"Enviando pergunta para OpenAI: {pergunta[:50]}...")
-            # Use configured model, temperature, max_tokens from env vars or defaults
             model = os.getenv("MODEL_IA", "gpt-3.5-turbo")
             temperature = float(os.getenv("IA_TEMPERATURE", 0.7))
             max_tokens = int(os.getenv("IA_MAX_TOKENS", 500))
-            api_timeout = float(os.getenv("IA_API_TIMEOUT", 30.0)) # Add configurable timeout
+            # Timeout for this specific API call (can override client default)
+            # api_call_timeout = float(os.getenv("IA_API_TIMEOUT", 30.0))
 
-            logger.info(f"Usando modelo={model}, temp={temperature}, max_tokens={max_tokens}, timeout={api_timeout}s")
+            logger.info(f"Usando modelo={model}, temp={temperature}, max_tokens={max_tokens}") # Removed timeout log here as it's set on client
 
             response = self.client.chat.completions.create(
                 model=model,
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                timeout=api_timeout # Pass timeout to the API call
+                # timeout=api_call_timeout # Timeout is now set on the client or OpenAI constructor
             )
-            # Extract the response content
             resposta_ia = response.choices[0].message.content.strip()
             logger.info("Resposta recebida da OpenAI.")
             return resposta_ia
-        # More specific error handling based on openai exceptions
+        # Specific error handling
         except openai.APIConnectionError as e:
              logger.error(f"Erro de conexão com a API OpenAI: {e}")
              return "🔮 O oráculo não conseguiu se conectar aos reinos etéreos. Verifique sua conexão de rede ou as configurações de proxy (se aplicável)."
@@ -320,7 +335,6 @@ class GerenciadorIA:
              logger.error(f"Timeout ao chamar a API OpenAI: {e}")
              return "🔮 A consulta ao Oráculo demorou demais para responder. Tente novamente ou simplifique sua pergunta."
         except Exception as e:
-            # Catch other potential errors during API call
             logger.error(f"Erro inesperado na geração de resposta da IA: {str(e)}")
             logger.error(traceback.format_exc())
             return "🔮 O oráculo está temporariamente confuso e não pôde responder devido a um erro inesperado. Tente novamente."
@@ -332,7 +346,6 @@ class Oraculo:
         logger.info("Inicializando o Oráculo...")
         self.db = BancoDeDados()
         self.ia = GerenciadorIA()
-        # Check if IA client initialized successfully
         if not self.ia.client:
              logger.error("Falha ao inicializar o GerenciadorIA. O Oráculo pode não funcionar corretamente.")
         logger.info("Oráculo inicializado.")
@@ -356,26 +369,22 @@ class Oraculo:
             if not self.ia.client:
                  logger.error("Tentativa de gerar resposta, mas o cliente IA não está inicializado.")
                  resposta = "⚠️ Serviço de IA indisponível no momento."
-                 # Still try to save the question with the error message as response
                  self.db.responder_pergunta(registro["id"], resposta)
                  registro["resposta"] = resposta # Update record in memory
                  return {"erro": resposta, **registro} # Return error but include record
 
             resposta = self.ia.gerar_resposta(pergunta, contexto)
-            # Update the record with the answer immediately (even if saving fails later)
-            registro["resposta"] = resposta
+            registro["resposta"] = resposta # Update record in memory
 
             # 3. Save answer to DB
             if not self.db.responder_pergunta(registro["id"], resposta):
                 logger.error(f"Falha ao salvar a resposta para a pergunta ID {registro['id']} no banco de dados.")
-                # Return the result anyway, but log the saving error
                 return {"aviso": "Sua resposta foi gerada, mas houve um problema ao salvá-la permanentemente.", **registro}
 
             logger.info(f"Pergunta ID {registro['id']} processada com sucesso.")
             return registro # Return the complete record including the answer
 
         except Exception as e:
-            # Catch unexpected errors during the processing flow
             logger.critical(f"Erro crítico durante o processamento da pergunta: {str(e)}")
             logger.critical(traceback.format_exc())
             return {"erro": f"Ocorreu uma falha crítica inesperada ao processar sua pergunta."}
@@ -383,30 +392,32 @@ class Oraculo:
 # --- Streamlit Interface ---
 def main_streamlit():
     """Main function to run the Streamlit interface."""
-    try:
-        import streamlit as st
-    except ImportError:
-        logger.error("Streamlit não está instalado. A interface gráfica não pode ser iniciada.")
+    # Ensure streamlit is available
+    if not st:
+        logger.error("Streamlit não está instalado ou não pôde ser importado. A interface gráfica não pode ser iniciada.")
         print("Erro: Streamlit não está instalado. Execute 'pip install streamlit' para usar a interface gráfica.")
-        return # Exit if streamlit is not available
+        return
 
-    # Initialize Oraculo only once using Streamlit's session state
-    # This prevents re-initialization on every interaction
-    if 'oraculo_instance' not in st.session_state:
-        logger.info("Criando nova instância do Oraculo para a sessão Streamlit.")
-        with st.spinner("Iniciando o Oráculo... Por favor, aguarde."):
-            st.session_state.oraculo_instance = Oraculo()
-        logger.info("Instância do Oraculo criada e armazenada no estado da sessão.")
-
-
-    oraculo = st.session_state.oraculo_instance
-
+    # --- CORREÇÃO APLICADA AQUI (Streamlit Error) ---
+    # Call set_page_config() as the VERY FIRST Streamlit command.
     st.set_page_config(
         page_title="Oráculo Sábio",
         page_icon="🔮",
         layout="centered"
     )
+    # --- FIM DA CORREÇÃO ---
 
+    # Initialize Oraculo only once using Streamlit's session state
+    if 'oraculo_instance' not in st.session_state:
+        logger.info("Criando nova instância do Oraculo para a sessão Streamlit.")
+        # Show spinner *after* set_page_config
+        with st.spinner("Iniciando o Oráculo... Por favor, aguarde."):
+            st.session_state.oraculo_instance = Oraculo()
+        logger.info("Instância do Oraculo criada e armazenada no estado da sessão.")
+
+    oraculo = st.session_state.oraculo_instance
+
+    # --- Rest of the Streamlit UI ---
     st.title("🔮 Oráculo Sábio")
     st.caption(f"v{__version__}")
 
@@ -414,33 +425,31 @@ def main_streamlit():
     if not oraculo.ia.client:
         st.warning("⚠️ O serviço de IA não pôde ser inicializado. Verifique a chave da API OpenAI e a conexão de rede. As respostas não estarão disponíveis.", icon="🚨")
 
-
     # Use st.form for better control over submission
-    with st.form("pergunta_form", clear_on_submit=True): # Clear form after submission
-        pergunta = st.text_area("Faça sua pergunta ao oráculo:", height=100, key="pergunta_input", disabled=(not oraculo.ia.client)) # Disable if IA not ready
-        contexto = st.text_input("Contexto adicional (opcional):", key="contexto_input", disabled=(not oraculo.ia.client)) # Disable if IA not ready
-        submitted = st.form_submit_button("Consultar o Oráculo", disabled=(not oraculo.ia.client)) # Disable if IA not ready
+    with st.form("pergunta_form", clear_on_submit=True):
+        is_disabled = not oraculo.ia.client # Check if IA is ready
+        pergunta = st.text_area("Faça sua pergunta ao oráculo:", height=100, key="pergunta_input", disabled=is_disabled)
+        contexto = st.text_input("Contexto adicional (opcional):", key="contexto_input", disabled=is_disabled)
+        submitted = st.form_submit_button("Consultar o Oráculo", disabled=is_disabled)
 
         if submitted:
             if not pergunta or not pergunta.strip():
                 st.warning("Por favor, digite sua pergunta antes de consultar.")
             else:
                 with st.spinner("Consultando os ventos do conhecimento..."):
-                    # Process the question using the Oraculo instance
                     resultado = oraculo.processar_pergunta(pergunta.strip(), contexto.strip() if contexto else None)
 
                 # Display result or error
                 if "erro" in resultado:
-                    st.error(f"{resultado['erro']}") # Simpler error display
+                    st.error(f"{resultado['erro']}")
                 elif "aviso" in resultado:
                      st.warning(f"{resultado['aviso']}")
                      st.info("Sua resposta:")
-                     st.markdown(resultado.get("resposta", "*O oráculo ficou em silêncio...*")) # Display answer even with warning
+                     st.markdown(resultado.get("resposta", "*O oráculo ficou em silêncio...*"))
                 elif "resposta" in resultado:
-                    # st.success("O Oráculo respondeu:") # Maybe too verbose
-                    st.markdown(f"**Resposta do Oráculo:**\n\n{resultado.get('resposta', '*O oráculo ficou em silêncio...*')}") # Use markdown for better formatting
+                    st.markdown(f"**Resposta do Oráculo:**\n\n{resultado.get('resposta', '*O oráculo ficou em silêncio...*')}")
                 else:
-                    st.error("Ocorreu uma resposta inesperada do Oráculo.") # Fallback for unexpected structure
+                    st.error("Ocorreu uma resposta inesperada do Oráculo.")
 
 
 # --- Local Console Interface ---
@@ -465,7 +474,7 @@ def main_local():
                     print("\nAté a próxima consulta!")
                     break
                 if not pergunta:
-                    continue # Ask again if input is empty
+                    continue
 
                 if not oraculo.ia.client:
                      print("   -> Cliente IA indisponível. Não é possível processar a pergunta.")
@@ -486,15 +495,14 @@ def main_local():
                 else:
                      print("\nErro: Resposta inesperada recebida.")
 
-            except EOFError: # Handle Ctrl+D
+            except EOFError:
                  print("\nEncerrado pelo usuário (EOF).")
                  break
-            except KeyboardInterrupt: # Handle Ctrl+C
+            except KeyboardInterrupt:
                 print("\nEncerrado pelo usuário (Ctrl+C).")
                 break
 
     except Exception as e:
-        # Catch critical errors during local execution setup or loop
         logger.critical(f"Erro fatal no modo console: {str(e)}")
         logger.critical(traceback.format_exc())
         print(f"\nErro crítico encontrado: {e}")
@@ -503,26 +511,24 @@ def main_local():
 
 # --- Main Execution Logic ---
 if __name__ == "__main__":
-    # Check if running under Streamlit based on module import and argv
-    # This is a common way to detect Streamlit execution context
+    # Determine if running under Streamlit
     is_streamlit = False
-    if "streamlit" in sys.modules:
+    if st: # Check if streamlit was imported successfully
         try:
             # A more robust check for Streamlit execution
             from streamlit.runtime.scriptrunner import get_script_run_ctx
             if get_script_run_ctx():
                 is_streamlit = True
-        except Exception:
-            # Fallback check if the above fails (e.g., older Streamlit versions)
+        except Exception as streamlit_check_err:
+             logger.warning(f"Erro ao verificar contexto Streamlit: {streamlit_check_err}. Usando fallback.")
+             # Fallback check if the above fails
              if hasattr(sys, 'argv') and 'streamlit' in sys.argv[0]:
                  is_streamlit = True
 
-
+    # Execute the appropriate main function
     if is_streamlit:
          logger.info("Executando no modo Streamlit.")
          main_streamlit()
     else:
          logger.info("Executando no modo console local.")
          main_local()
-
-
