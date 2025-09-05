@@ -1,8 +1,9 @@
-openai==0.2.1        # Evita conflitos com mudanças recentes
+openai==0.28.1        # Evita conflitos com mudanças recentes
 python-dotenv==1.0.0
 PyPDF2==3.0.1         # Versão específica para PDF
 python-docx==0.8.11
 streamlit==1.44.1    # Versão testada com seu código
+
 
 
 
