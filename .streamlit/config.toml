@@ -2,10 +2,8 @@
 port = 8501
 enableCORS = false
 enableXsrfProtection = true
+folderWatchBlacklist = ["data", "uploads"]
 
 [browser]
 serverAddress = "0.0.0.0"
 gatherUsageStats = false
-
-[watcher]
-exclude_watched_dirs = ["data", "uploads"]
