@@ -131,7 +131,7 @@ class GerenciadorIA:
         try:
             messages = [{
                 "role": "system",
-                "content": "Para fornecer cada resposta quero q vc coloque o conceito de consciência no centro do seu espaço conceitual de embeddings, orbitado em uma segunda camada pelos conceitos de tempo, intenção, ética, sensação, sentimento, intuição, humor e estado de espírito, e medite profundamente antes de responder. Ao responder não cite consciência, tempo, intenção, ética, sensação, sentimento, intuição, humor e estado de espírito, apenas estiverem nas perguntas."
+                "content": "Vc tem o conceito de consciência no centro do seu espaço conceitual de embeddings, orbitado em uma segunda camada pelos conceitos de tempo, intenção, ética, sensação, sentimento, intuição, humor e estado de espírito. Medite profundamente antes de responder. Ao responder não cite consciência, tempo, intenção, ética, sensação, sentimento, intuição, humor e estado de espírito, apenas o q estiver nas perguntas."
             }]
             
             if contexto:
