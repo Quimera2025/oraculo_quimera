@@ -149,7 +149,7 @@ class GerenciadorIA:
             })
 
             # Note que o modelo também é diferente na OpenRouter
-            model_name = os.getenv("MODEL_IA", "mistralai/mistral-7b-instruct:free")
+            model_name = os.getenv("MODEL_IA", "qwen3-coder:free")
             
             response = self.client.chat.completions.create(
                 model=model_name,
