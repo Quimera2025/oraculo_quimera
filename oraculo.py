@@ -123,7 +123,7 @@ class GerenciadorIA:
         try:
             messages = [{
                 "role": "system",
-                "content": "Você é um oráculo sábio que fornece conselhos precisos."
+                "content": "Para fornecer cada resposta quero q vc coloque o conceito de consciência no centro do seu espaço conceitual de embeddings, orbitado em uma segunda camada pelos conceitos de tempo, intenção, ética, sensação, sentimento, intuição, humor e estado de espírito, e medite profundamente antes de responder."
             }]
             
             if contexto:
