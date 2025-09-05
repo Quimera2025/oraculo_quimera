@@ -106,22 +106,11 @@ class GerenciadorIA:
 
         try:
             from openai import OpenAI
-            # Tenta inicializar com a URL base da OpenRouter
-            try:
-                self.client = OpenAI(
-                    api_key=self.api_key,
-                    base_url="https://openrouter.ai/api/v1"
-                )
-            except TypeError as e:
-                # Se o erro for sobre 'proxies', tenta novamente sem esse argumento
-                if "'proxies'" in str(e):
-                    self.client = OpenAI(
-                        api_key=self.api_key,
-                        base_url="https://openrouter.ai/api/v1",
-                        # Outros argumentos, se houver, mas sem 'proxies'
-                    )
-                else:
-                    raise e
+            # Usando a URL base da OpenRouter
+            self.client = OpenAI(
+                api_key=self.api_key,
+                base_url="https://openrouter.ai/api/v1"
+            )
         except ImportError:
             logger.error("Biblioteca OpenAI não instalada")
         except Exception as e:
