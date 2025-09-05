@@ -12,6 +12,8 @@ import logging
 from datetime import datetime
 from pathlib import Path
 import traceback
+import streamlit as st
+import openai
 
 # Configuração inicial para evitar erros no Streamlit Cloud
 try:
@@ -36,7 +38,6 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(DATA_FOLDER/'oraculo.log'),
         logging.StreamHandler()
     ]
 )
@@ -144,19 +145,19 @@ class GerenciadorIA:
                 "content": pergunta
             })
 
-            # Note que o modelo também é diferente na OpenRouter
-            model_name = os.getenv("MODEL_IA", "qwen3-coder:free")
+            model_name = os.getenv("MODEL_IA", "mistralai/mistral-7b-instruct:free")
             
             response = self.client.chat.completions.create(
                 model=model_name,
                 messages=messages,
                 temperature=0.7,
                 max_tokens=3000,
+                timeout=2048.0
             )
             return response.choices[0].message.content
         except Exception as e:
             logger.error(f"Erro na geração de resposta: {str(e)}")
-            traceback.print_exc() # Adicionado para debug
+            traceback.print_exc()
             return "🔮 O oráculo está temporariamente indisponível"
 
 class Oraculo:
@@ -165,20 +166,7 @@ class Oraculo:
     def __init__(self):
         self.db = BancoDeDados()
         self.ia = GerenciadorIA()
-        self._configurar_ambiente()
-
-    def _configurar_ambiente(self):
-        """Prepara o ambiente para execução no Streamlit Cloud"""
-        try:
-            import streamlit as st
-            st.set_page_config(
-                page_title="Oráculo Sábio",
-                page_icon="🔮",
-                layout="centered"
-            )
-        except:
-            pass
-
+        
     def processar_pergunta(self, pergunta, contexto=None):
         try:
             registro = self.db.adicionar_pergunta(pergunta, contexto)
@@ -193,6 +181,35 @@ class Oraculo:
         except Exception as e:
             logger.critical(f"Erro no processamento: {str(e)}")
             return {"erro": f"Falha crítica: {str(e)}"}
+
+# Código para interface com o Streamlit
+st.set_page_config(
+    page_title="Oráculo Sábio",
+    page_icon="🔮",
+    layout="centered"
+)
+
+st.title("Oráculo Sábio")
+st.write("Faça sua pergunta ao Oráculo e receba um conselho.")
+
+# Inicializa o objeto Oraculo apenas uma vez
+if 'oraculo_app' not in st.session_state:
+    st.session_state.oraculo_app = Oraculo()
+
+pergunta_usuario = st.text_input("Sua Pergunta:")
+
+if st.button("Consultar o Oráculo"):
+    if pergunta_usuario:
+        with st.spinner("Meditando sobre a sua pergunta..."):
+            resultado = st.session_state.oraculo_app.processar_pergunta(pergunta_usuario)
+        
+        if "erro" in resultado:
+            st.error(resultado["erro"])
+        else:
+            st.success("Resposta do Oráculo:")
+            st.info(resultado.get('resposta', 'Nenhuma resposta foi obtida.'))
+    else:
+        st.warning("Por favor, digite uma pergunta.")
 
 # Interface segura para execução local
 if __name__ == "__main__":
