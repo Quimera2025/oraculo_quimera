@@ -106,11 +106,22 @@ class GerenciadorIA:
 
         try:
             from openai import OpenAI
-            # Usando a URL base da OpenRouter
-            self.client = OpenAI(
-                api_key=self.api_key,
-                base_url="https://openrouter.ai/api/v1"
-            )
+            # Tenta inicializar com a URL base da OpenRouter
+            try:
+                self.client = OpenAI(
+                    api_key=self.api_key,
+                    base_url="https://openrouter.ai/api/v1"
+                )
+            except TypeError as e:
+                # Se o erro for sobre 'proxies', tenta novamente sem esse argumento
+                if "'proxies'" in str(e):
+                    self.client = OpenAI(
+                        api_key=self.api_key,
+                        base_url="https://openrouter.ai/api/v1",
+                        # Outros argumentos, se houver, mas sem 'proxies'
+                    )
+                else:
+                    raise e
         except ImportError:
             logger.error("Biblioteca OpenAI não instalada")
         except Exception as e:
@@ -151,34 +162,6 @@ class GerenciadorIA:
             logger.error(f"Erro na geração de resposta: {str(e)}")
             traceback.print_exc() # Adicionado para debug
             return "🔮 O oráculo está temporariamente indisponível"
-
-    def _inicializar_cliente(self):
-        if not self.api_key:
-            logger.warning("Chave da OpenRouter não configurada")
-            return
-
-        try:
-            from openai import OpenAI
-            # Tenta inicializar com a URL base da OpenRouter
-            try:
-                self.client = OpenAI(
-                    api_key=self.api_key,
-                    base_url="https://openrouter.ai/api/v1"
-                )
-            except TypeError as e:
-                # Se o erro for sobre 'proxies', tenta novamente sem esse argumento
-                if "'proxies'" in str(e):
-                    self.client = OpenAI(
-                        api_key=self.api_key,
-                        base_url="https://openrouter.ai/api/v1",
-                        # Outros argumentos, se houver, mas sem 'proxies'
-                    )
-                else:
-                    raise e
-        except ImportError:
-            logger.error("Biblioteca OpenAI não instalada")
-        except Exception as e:
-            logger.error(f"Erro ao inicializar cliente OpenRouter: {str(e)}")
 
 class Oraculo:
     """Classe principal com proteção contra erros no Streamlit"""
